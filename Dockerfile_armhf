@@ -7,13 +7,15 @@ FROM ${USERNAME}/${DOCKERSRC}:${ARCH}
 ARG PUID=1001
 ARG PGID=1001
 #
-RUN set -ex && \
-    addgroup -g ${PGID} -S grafana \
+ENV GRAFANA_HOME=/var/lib/grafana
+#
+RUN set -ex \
+    && addgroup -g ${PGID} -S grafana \
     && adduser -u ${PUID} -G grafana -h ${GRAFANA_HOME} -D grafana \
-    && echo 'hosts: files dns' >> /etc/nsswitch.conf && \
-    apk add -Uu --no-cache ca-certificates curl openssl fontconfig \
+    && echo 'hosts: files dns' >> /etc/nsswitch.conf \
+    && apk add -Uu --no-cache ca-certificates curl openssl fontconfig \
     && VERSION=$(curl -SL https://api.github.com/repos/fg2it/grafana-on-raspberry/releases/latest | awk '/tag_name/{print $4;exit}' FS='[""]' | sed -e 's_v__') \
-    && echo "Using version: $VERSION" && \
+    && echo "Using version: $VERSION" \
     && curl -o /tmp/grafana-${VERSION}.linux-armhf.tar.gz -SL https://github.com/fg2it/grafana-on-raspberry/releases/download/v${VERSION}/grafana-${VERSION}.linux-armhf.tar.gz \
     && cd /tmp/ \
     && tar -xzf grafana-${VERSION}.linux-armhf.tar.gz \
