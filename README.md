@@ -4,10 +4,10 @@
 #### Container for Alpine Linux + S6 + Grafana
 ---
 
-This [image][233] serves as a monitor/visualization dashboard for
-applications/services that require a [Grafana][135] application
-running. Usually coupled with my [alpine-influxdb][136] image,
-using [alpine-netdata][137] to collect the metrics.
+This [image][233] serves as a monitor/visualization dashboard
+server using [Grafana][135]. Usually coupled with my
+[alpine-influxdb][136] image, using [alpine-netdata][137] to
+collect the metrics.
 
 Based on [Alpine Linux][131] from my [alpine-glibc][132] image
 with the [s6][133] init system [overlayed][134] in it.
