@@ -1,9 +1,0 @@
-#!/usr/bin/with-contenv bash
-s6-setuidgid grafana exec grafana-server \
-    --homepath=${GRAFANA_HOME} \
-    --config="${GRAFANA_HOME}/conf/defaults.ini" \
-    cfg:default.log.mode="console" \
-    cfg:default.paths.data="${GRAFANA_HOME}/data" \
-    cfg:default.paths.logs="${GRAFANA_HOME}/logs" \
-    cfg:default.paths.plugins="${GRAFANA_HOME}/plugins" \
-    cfg:default.paths.provisioning="${GRAFANA_HOME}/provisioning"

@@ -1,0 +1,25 @@
+#!/usr/bin/with-contenv bash
+set -e
+
+GRAFANA_HOME="${GRAFANA_HOME:-/var/lib/grafana}";
+
+GF_LOG_MODE="${GF_LOG_MODE:-console}";
+GF_PATHS_CONFIG="${GF_PATHS_CONFIG:-$GRAFANA_HOME/conf/defaults.ini}";
+GF_PATHS_DATA="${GF_PATHS_DATA:-$GRAFANA_HOME/data}";
+GF_PATHS_HOME="${GF_PATHS_HOME:-$GRAFANA_HOME}";
+GF_PATHS_LOGS="${GRAFANA_HOME}/log";
+GF_PATHS_PLUGINS="${GF_PATHS_PLUGINS:-$GRAFANA_HOME/plugins}";
+GF_PATHS_PROVISIONING="${GF_PATHS_PROVISIONING:-$GRAFANA_HOME/provisioning}";
+
+GRAFANA_ARGS="${GRAFANA_ARGS:- cfg:default.log.mode=$GF_LOG_MODE cfg:default.paths.data=$GF_PATHS_DATA cfg:default.paths.logs=$GF_PATHS_LOGS cfg:default.paths.plugins=$GF_PATHS_PLUGINS cfg:default.paths.provisioning=$GF_PATHS_PROVISIONING}";
+# GRAFANA_ARGS_EXTRA="";
+
+cd ${GRAFANA_HOME} || exit 1;
+
+s6-setuidgid ${S6_USER:-alpine} exec \
+    grafana server \
+    --config=$GF_PATHS_CONFIG \
+    --homepath=$GF_PATHS_HOME \
+    --packaging=docker \
+    ${GRAFANA_ARGS} \
+    ${GRAFANA_ARGS_EXTRA};

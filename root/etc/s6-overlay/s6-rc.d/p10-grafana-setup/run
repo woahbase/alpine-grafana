@@ -1,0 +1,102 @@
+#!/usr/bin/with-contenv bash
+set -e
+
+GRAFANA_HOME="${GRAFANA_HOME:-/var/lib/grafana}";
+
+GF_PATHS_CONFIG="${GF_PATHS_CONFIG:-$GRAFANA_HOME/conf/defaults.ini}";
+GF_PATHS_DATA="${GF_PATHS_DATA:-$GRAFANA_HOME/data}";
+GF_PATHS_HOME="${GF_PATHS_HOME:-$GRAFANA_HOME}";
+GF_PATHS_LOGS="${GRAFANA_HOME}/log";
+GF_PATHS_PLUGINS="${GF_PATHS_PLUGINS:-$GRAFANA_HOME/plugins}";
+GF_PATHS_PROVISIONING="${GF_PATHS_PROVISIONING:-$GRAFANA_HOME/provisioning}";
+
+# make needed directories
+mkdir -p \
+    "$GF_PATHS_DATA" \
+    "$GF_PATHS_HOME" \
+    "$GF_PATHS_LOGS" \
+    "$GF_PATHS_PLUGINS" \
+    "$GF_PATHS_PROVISIONING" \
+    "$GF_PATHS_PROVISIONING/datasources" \
+    "$GF_PATHS_PROVISIONING/dashboards" \
+    "$GF_PATHS_PROVISIONING/notifiers" \
+    "$GF_PATHS_PROVISIONING/plugins" \
+    "$GF_PATHS_PROVISIONING/access-control" \
+    "$GF_PATHS_PROVISIONING/alerting" \
+    "${GRAFANA_HOME}/dashboards" \
+    ;
+
+# ensure grafana conf exists
+if [ ! -f "${GF_PATHS_CONFIG}" ];
+then
+    mkdir -p $(dirname "${GF_PATHS_CONFIG}") \
+    && cp /defaults/defaults.ini ${GF_PATHS_CONFIG};
+fi;
+
+# ensure aws credentials exists, if specified per profile
+if [ ! -f "${GRAFANA_HOME}/.aws/credentials" ] \
+&& [ ! -z "${GF_AWS_PROFILES+x}" ];
+then
+    mkdir -p ${GRAFANA_HOME}/.aws/;
+    touch ${GRAFANA_HOME}/.aws/credentials;
+
+    for profile in ${GF_AWS_PROFILES};
+    do
+        access_key_varname="GF_AWS_${profile}_ACCESS_KEY_ID";
+        secret_key_varname="GF_AWS_${profile}_SECRET_ACCESS_KEY";
+        region_varname="GF_AWS_${profile}_REGION";
+
+        if [ ! -z "${!access_key_varname}" -a ! -z "${!secret_key_varname}" ];
+        then
+            echo "[${profile}]" >> ${GRAFANA_HOME}/.aws/credentials;
+            echo "aws_access_key_id = ${!access_key_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
+            echo "aws_secret_access_key = ${!secret_key_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
+            if [ ! -z "${!region_varname}" ];
+            then
+                echo "region = ${!region_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
+            fi;
+        fi;
+    done;
+
+    # chown grafana:grafana -R ${GRAFANA_HOME}/.aws
+    chmod 600 ${GRAFANA_HOME}/.aws/credentials;
+fi;
+
+# fix permissions
+find "${GRAFANA_HOME}" \
+    \! -user ${S6_USER:-alpine} -exec \
+    chown --no-dereference \
+    ${S6_USER:-alpine}:${S6_USER:-alpine} \
+    '{}' +;
+# chown -R ${S6_USER:-alpine}:${S6_USER:-alpine} \
+#     ${GRAFANA_HOME} \
+#     ;
+
+# install plugins as needed
+if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then
+    OLDIFS=$IFS;
+    IFS=',';
+    for plugin in ${GF_INSTALL_PLUGINS};
+    do
+        IFS=$OLDIFS;
+        if [[ $plugin =~ .*\;.* ]];
+        then
+            pluginUrl=$(echo "$plugin" | cut -d';' -f 1);
+            pluginInstallFolder=$(echo "$plugin" | cut -d';' -f 2);
+            s6-setuidgid ${S6_USER:-alpine} exec \
+                grafana cli --pluginUrl ${pluginUrl} --pluginsDir "${GF_PATHS_PLUGINS}" \
+                plugins install "${pluginInstallFolder}";
+        else
+            s6-setuidgid ${S6_USER:-alpine} exec \
+                grafana cli --pluginsDir "${GF_PATHS_PLUGINS}" plugins install ${plugin};
+        fi;
+    done;
+    IFS=$OLDIFS;
+fi;
+
+# update all plugins
+if [ ! -z "${GF_UPDATE_PLUGINS}" ];
+then
+    s6-setuidgid ${S6_USER:-alpine} exec \
+        grafana cli --pluginsDir "${GF_PATHS_PLUGINS}" plugins update-all;
+fi;
