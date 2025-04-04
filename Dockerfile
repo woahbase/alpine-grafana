@@ -38,7 +38,7 @@ ENV \
     GF_PATHS_CONFIG="${GRAFANA_HOME}/conf/defaults.ini" \
     GF_PATHS_DATA="${GRAFANA_HOME}/data" \
     GF_PATHS_HOME="${GRAFANA_HOME}" \
-    GF_PATHS_LOGS="${GRAFANA_HOME}/log" \
+    GF_PATHS_LOGS="${GRAFANA_HOME}/logs" \
     GF_PATHS_PLUGINS="${GRAFANA_HOME}/plugins" \
     GF_PATHS_PROVISIONING="${GRAFANA_HOME}/provisioning"
 #
