@@ -2,6 +2,7 @@
 set -e
 
 vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+usercmd () { if [ "X${EUID}" != "X0" ]; then ${1} "${@:2}"; else s6-setuidgid ${PUID:-1000}:${PGID:-1000} ${1} "${@:2}"; fi; }
 
 GRAFANA_HOME="${GRAFANA_HOME:-/var/lib/grafana}";
 
@@ -15,35 +16,43 @@ GF_PATHS_PROVISIONING="${GF_PATHS_PROVISIONING:-$GRAFANA_HOME/provisioning}";
 # make needed directories
 vecho "Ensure configuration directories exist.";
 mkdir -p \
-    "$GF_PATHS_DATA" \
-    "$GF_PATHS_HOME" \
-    "$GF_PATHS_LOGS" \
-    "$GF_PATHS_PLUGINS" \
-    "$GF_PATHS_PROVISIONING" \
-    "$GF_PATHS_PROVISIONING/datasources" \
-    "$GF_PATHS_PROVISIONING/dashboards" \
-    "$GF_PATHS_PROVISIONING/notifiers" \
-    "$GF_PATHS_PROVISIONING/plugins" \
-    "$GF_PATHS_PROVISIONING/access-control" \
-    "$GF_PATHS_PROVISIONING/alerting" \
+    "${GF_PATHS_DATA}" \
+    "${GF_PATHS_HOME}" \
+    "${GF_PATHS_LOGS}" \
+    "${GF_PATHS_PLUGINS}" \
+    "${GF_PATHS_PROVISIONING}" \
+    "${GF_PATHS_PROVISIONING}/access-control" \
+    "${GF_PATHS_PROVISIONING}/alerting" \
+    "${GF_PATHS_PROVISIONING}/dashboards" \
+    "${GF_PATHS_PROVISIONING}/datasources" \
+    "${GF_PATHS_PROVISIONING}/notifiers" \
+    "${GF_PATHS_PROVISIONING}/plugins" \
     "${GRAFANA_HOME}/dashboards" \
     ;
+
+_subst () {
+    GF_PATHS_CONFIGDIR="$(dirname $GF_PATHS_CONFIG)";
+    sed \
+        -e "s|GRAFANA_HOME|${GRAFANA_HOME}|g" \
+        -e "s|GF_PATHS_CONFIGDIR|${GF_PATHS_CONFIGDIR}|g" \
+    $1 > $2;
+}
 
 # ensure grafana conf exists
 if [ ! -f "${GF_PATHS_CONFIG}" ];
 then
     vecho "Setting up default configurations at ${GF_PATHS_CONFIG}";
     mkdir -p $(dirname "${GF_PATHS_CONFIG}") \
-    && cp /defaults/defaults.ini ${GF_PATHS_CONFIG};
+    && _subst /defaults/defaults.ini ${GF_PATHS_CONFIG};
 fi;
 
 # ensure aws credentials exists, if specified per profile
-if [ ! -f "${GRAFANA_HOME}/.aws/credentials" ] \
+if [ ! -f "${GF_PATHS_HOME}/.aws/credentials" ] \
 && [ ! -z "${GF_AWS_PROFILES+x}" ];
 then
     vecho "Setting up AWS credentials/profiles";
-    mkdir -p ${GRAFANA_HOME}/.aws/;
-    touch ${GRAFANA_HOME}/.aws/credentials;
+    mkdir -p ${GF_PATHS_HOME}/.aws/;
+    touch ${GF_PATHS_HOME}/.aws/credentials;
 
     for profile in ${GF_AWS_PROFILES};
     do
@@ -53,27 +62,31 @@ then
 
         if [ ! -z "${!access_key_varname}" -a ! -z "${!secret_key_varname}" ];
         then
-            echo "[${profile}]" >> ${GRAFANA_HOME}/.aws/credentials;
-            echo "aws_access_key_id = ${!access_key_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
-            echo "aws_secret_access_key = ${!secret_key_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
+            echo "[${profile}]" >> ${GF_PATHS_HOME}/.aws/credentials;
+            echo "aws_access_key_id = ${!access_key_varname}" >> ${GF_PATHS_HOME}/.aws/credentials;
+            echo "aws_secret_access_key = ${!secret_key_varname}" >> ${GF_PATHS_HOME}/.aws/credentials;
             if [ ! -z "${!region_varname}" ];
             then
-                echo "region = ${!region_varname}" >> ${GRAFANA_HOME}/.aws/credentials;
+                echo "region = ${!region_varname}" >> ${GF_PATHS_HOME}/.aws/credentials;
             fi;
         fi;
     done;
 
-    # chown grafana:grafana -R ${GRAFANA_HOME}/.aws
-    chmod 600 ${GRAFANA_HOME}/.aws/credentials;
+    # chown grafana:grafana -R ${GF_PATHS_HOME}/.aws
+    chmod 600 ${GF_PATHS_HOME}/.aws/credentials;
 fi;
 
 # fix permissions
-vecho "Fixing permissions.";
-find "${GRAFANA_HOME}" \
-    \! -user ${S6_USER:-alpine} -exec \
-    chown --no-dereference \
-    ${S6_USER:-alpine}:${PGID:-1000} \
-    '{}' +;
+if [ -z "${GRAFANA_SKIP_PERMFIX}" ] \
+&& [ "X${EUID}" == "X0" ]; # requires root
+then
+    vecho "Fixing permissions.";
+    find "${GRAFANA_HOME}" "${GF_PATHS_HOME}" \
+        \! -user ${S6_USER:-alpine} -exec \
+        chown --no-dereference \
+        ${S6_USER:-alpine}:${PGID:-1000} \
+        '{}' +;
+fi;
 
 # install plugins as needed
 if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then
@@ -88,12 +101,12 @@ if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then
             pluginUrl=$(echo "$plugin" | cut -d';' -f 1);
             pluginInstallFolder=$(echo "$plugin" | cut -d';' -f 2);
             vecho "Installing ${pluginUrl} at ${pluginInstallFolder}";
-            s6-setuidgid ${S6_USER:-alpine} \
+            usercmd \
                 grafana cli --pluginUrl ${pluginUrl} --pluginsDir "${GF_PATHS_PLUGINS}" \
                 plugins install "${pluginInstallFolder}";
         else
             vecho "Installing ${plugin}";
-            s6-setuidgid ${S6_USER:-alpine} \
+            usercmd \
                 grafana cli --pluginsDir "${GF_PATHS_PLUGINS}" plugins install ${plugin};
         fi;
     done;
@@ -104,6 +117,6 @@ fi;
 if [ ! -z "${GF_UPDATE_PLUGINS}" ];
 then
     vecho "Updating Plugins...";
-    s6-setuidgid ${S6_USER:-alpine} exec \
+    usercmd exec \
         grafana cli --pluginsDir "${GF_PATHS_PLUGINS}" plugins update-all;
 fi;

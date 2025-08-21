@@ -1,6 +1,8 @@
 #!/usr/bin/with-contenv bash
 set -e
 
+usercmd () { if [ "X${EUID}" != "X0" ]; then ${1} "${@:2}"; else s6-setuidgid ${PUID:-1000}:${PGID:-1000} ${1} "${@:2}"; fi; }
+
 GRAFANA_HOME="${GRAFANA_HOME:-/var/lib/grafana}";
 
 GF_LOG_MODE="${GF_LOG_MODE:-console}";
@@ -16,7 +18,8 @@ GRAFANA_ARGS="${GRAFANA_ARGS:- cfg:default.log.mode=$GF_LOG_MODE cfg:default.pat
 
 cd ${GRAFANA_HOME} || exit 1;
 
-s6-setuidgid ${S6_USER:-alpine} exec \
+usercmd \
+exec \
     grafana server \
     --config=$GF_PATHS_CONFIG \
     --homepath=$GF_PATHS_HOME \
