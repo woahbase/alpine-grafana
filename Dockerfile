@@ -25,7 +25,7 @@ RUN set -ex \
     && curl -o /tmp/grafana-${VERSION}.${SRCARCH}.tar.gz -SL https://dl.grafana.com/oss/release/grafana-${VERSION}.${SRCARCH}.tar.gz \
     && cd /tmp/ \
     && tar -xzf grafana-${VERSION}.${SRCARCH}.tar.gz \
-    && mv grafana-v${VERSION}/* ${GRAFANA_HOME}/ \
+    && mv grafana-${VERSION}/* ${GRAFANA_HOME}/ \
     && mv ${GRAFANA_HOME}/bin/* /usr/local/bin/ \
     && mkdir -p /defaults \
     && mv $GRAFANA_HOME/conf/defaults.ini /defaults/defauls.ini.default \
