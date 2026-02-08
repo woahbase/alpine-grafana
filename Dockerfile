@@ -12,6 +12,7 @@ ENV \
 #
 RUN set -ex \
     && apk add -Uu --no-cache \
+        bubblewrap \
         ca-certificates \
         curl \
         fontconfig \
